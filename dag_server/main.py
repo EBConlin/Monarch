@@ -1,17 +1,22 @@
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
 from pydantic import BaseModel
 from typing import List, Dict, Any
 from datetime import datetime
 import uuid
 import sqlite3
 import json
+import os
 
 app = FastAPI()
+
+EXPORT_DIR = "dags"
+os.makedirs(EXPORT_DIR, exist_ok=True)
 
 class DAGNode(BaseModel):
     id: str
     type: str
     content: str
+    formal_spec: str = ""
     metadata: Dict[str, Any] = {}
 
 class DAGEdge(BaseModel):
@@ -55,6 +60,8 @@ def read_root():
 @app.post("/save_dag")
 async def save_dag(dag: DAGObject):
     dag_id = str(uuid.uuid4())
+
+    # Save to SQLite
     conn = sqlite3.connect("dag_memory.db")
     c = conn.cursor()
     c.execute("""
@@ -70,4 +77,17 @@ async def save_dag(dag: DAGObject):
     ))
     conn.commit()
     conn.close()
+
+    # Save to JSON file
+    export_path = os.path.join(EXPORT_DIR, f"{dag_id}.json")
+    with open(export_path, "w") as f:
+        json.dump({
+            "dag_id": dag_id,
+            "name": dag.name,
+            "nodes": [n.dict() for n in dag.nodes],
+            "edges": [{"from": e.from_, "to": e.to, "relation": e.relation} for e in dag.edges],
+            "metadata": dag.metadata.dict(),
+            "created_at": dag.metadata.created_at
+        }, f, indent=2)
+
     return {"dag_id": dag_id, "message": "DAG saved successfully"}
