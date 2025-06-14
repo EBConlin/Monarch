@@ -48,6 +48,10 @@ def startup():
     conn.commit()
     conn.close()
 
+@app.get("/")
+def read_root():
+    return {"message": "Monarch DAG Server is alive"}
+
 @app.post("/save_dag")
 async def save_dag(dag: DAGObject):
     dag_id = str(uuid.uuid4())
